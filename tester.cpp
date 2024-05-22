@@ -5,6 +5,8 @@
 #include <iostream>
 #include <cassert>
 
+
+//RECORDATORIO: HACER TESTS DE TODAS LAS NUEVA FUNCIONES
 void testWebpageDownloader() {
     std::string url = "https://en.wikipedia.org/wiki/Web_crawler";
     std::string webpage = downloadWebpage(url);
