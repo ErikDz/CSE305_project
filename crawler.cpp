@@ -1,3 +1,4 @@
+// crawler.cpp
 #include "crawler.h"
 #include "webpage_downloader.h"
 #include "link_extractor.h"
@@ -8,7 +9,7 @@
 #include <chrono>
 
 Crawler::Crawler(const std::string& startUrl, int numThreads)
-    : startUrl(startUrl), numThreads(numThreads), visitedWebpages(100), pagesVisited(0) {
+    : startUrl(startUrl), numThreads(numThreads), pagesVisited(0), visitedWebpages(100), done(false), activeThreads(0) {
 }
 
 void Crawler::setThreadCount(int count) {
@@ -16,7 +17,6 @@ void Crawler::setThreadCount(int count) {
 }
 
 void Crawler::run() {
-    // we save the base domain on an environment variable
     std::vector<std::thread> threads;
     for (int i = 0; i < numThreads; ++i) {
         threads.emplace_back(&Crawler::crawlLoop, this);
@@ -28,18 +28,17 @@ void Crawler::run() {
         queueCondVar.notify_one();
     }
 
-    const int maxPagesToVisit = 1000;
-
-    while (!urlQueue.empty() && pagesVisited < maxPagesToVisit) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
-    {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        while (!urlQueue.empty()) {
-            urlQueue.pop();
+    // Continuously check if crawling should stop
+    while (true) {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            if (urlQueue.empty() && activeThreads == 0) {
+                done = true;
+                queueCondVar.notify_all();
+                break;
+            }
         }
-        queueCondVar.notify_all();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     for (auto& thread : threads) {
@@ -52,57 +51,52 @@ void Crawler::crawlLoop() {
         std::string url;
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            // Wait for the condition variable to be notified and check the queue is not empty
-            queueCondVar.wait(lock, [this] { return !urlQueue.empty(); });
+            queueCondVar.wait(lock, [this] { return !urlQueue.empty() || done; });
 
-            // When notified, check if the queue is still not empty
-            if (urlQueue.empty()) {
-                continue; // If the queue is empty, go back to waiting
+            if (done) {
+                break;
             }
 
             url = urlQueue.front();
             urlQueue.pop();
         }
 
-        // Normalize URL
+        activeThreads++;
+
         url = normalizeLink(url, extractDomain(startUrl));
 
-        // Print the thread ID and URL being crawled
         std::cout << "Thread ID: " << std::this_thread::get_id() << std::endl;
         std::cout << "Crawling: " << url << std::endl;
 
         // Check if the URL has already been visited
         if (visitedWebpages.contains(url)) {
             std::cout << "  Already visited" << std::endl;
+            activeThreads--;
             continue;
         }
 
         try {
-            // Download webpage
             auto startDownload = std::chrono::steady_clock::now();
             std::string webpage = downloadWebpage(url);
             auto endDownload = std::chrono::steady_clock::now();
             performanceMetrics["download"] += std::chrono::duration_cast<std::chrono::milliseconds>(endDownload - startDownload);
 
-            // Extract links from the webpage
             auto startExtract = std::chrono::steady_clock::now();
             std::string baseDomain = extractDomain(url);
             std::vector<std::string> links = extractLinks(webpage, baseDomain);
             auto endExtract = std::chrono::steady_clock::now();
             performanceMetrics["extract_links"] += std::chrono::duration_cast<std::chrono::milliseconds>(endExtract - startExtract);
 
-            // Extract title and content summary
             std::string title = extractTitle(webpage);
             std::string contentSummary = extractContentSummary(webpage);
 
             {
-                // Insert the URL into the visited set and increase the pagesVisited count
+                std::unique_lock<std::mutex> lock(visitedMutex);
                 visitedWebpages.insert(url);
                 ++pagesVisited;
                 websiteIndex.push_back({url, title, contentSummary});
             }
 
-            // Add new links to the URL queue
             auto startQueue = std::chrono::steady_clock::now();
             {
                 std::unique_lock<std::mutex> lock(queueMutex);
@@ -117,7 +111,7 @@ void Crawler::crawlLoop() {
                     }
                     if (!visitedWebpages.contains(link) && !urlQueueContains(link)) {
                         urlQueue.push(link);
-                        queueCondVar.notify_all(); // Notify all waiting threads
+                        queueCondVar.notify_one();
                     }
                 }
             }
@@ -127,6 +121,8 @@ void Crawler::crawlLoop() {
         } catch (const std::exception& e) {
             std::cerr << "Error crawling webpage: " << url << " - " << e.what() << std::endl;
         }
+
+        activeThreads--;
     }
 }
 
