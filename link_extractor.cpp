@@ -21,6 +21,7 @@ std::vector<std::string> extractLinks(const std::string& webpage, const std::str
 
         // Clean and normalize the link
         link = normalizeLink(link, baseDomain);
+        //std::cout << link << std::endl;
 
 
         // Extract the domain from the link
@@ -65,11 +66,12 @@ std::string normalizeLink(std::string link, const std::string& baseDomain) {
     }
 
     // If it is a relative link, we add the base domain
-        if (link.find("://") == std::string::npos) {
+        
+    if (link.find("://") == std::string::npos) {
         if (link.empty() || link[0] != '/') {
             link = '/' + link;
         }
-        link = baseDomain + link;
+        link = "http://" + baseDomain + link;
     }
 
     return link;

@@ -8,7 +8,7 @@ int main() {
     std::cout << "Enter the starting URL: ";
     std::getline(std::cin, startUrl);
 
-    std::vector<int> threadCounts = {5, 50, 100, 150, 200, 250, 300, 350, 400};  // Different numbers of threads to test
+    std::vector<int> threadCounts = {50, 100, 150, 200, 250, 300, 350, 400};  // Different numbers of threads to test
 
     for (int numThreads : threadCounts) {
         std::cout << "Testing with " << numThreads << " threads..." << std::endl;

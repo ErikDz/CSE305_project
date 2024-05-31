@@ -52,48 +52,57 @@ void Crawler::crawlLoop() {
         std::string url;
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            if (urlQueue.empty()) {
-                break;
-            }
+            // Wait for the condition variable to be notified and check the queue is not empty
             queueCondVar.wait(lock, [this] { return !urlQueue.empty(); });
+
+            // When notified, check if the queue is still not empty
+            if (urlQueue.empty()) {
+                continue; // If the queue is empty, go back to waiting
+            }
+
             url = urlQueue.front();
             urlQueue.pop();
         }
 
+        // Normalize URL
         url = normalizeLink(url, extractDomain(startUrl));
+
+        // Print the thread ID and URL being crawled
+        std::cout << "Thread ID: " << std::this_thread::get_id() << std::endl;
         std::cout << "Crawling: " << url << std::endl;
 
+        // Check if the URL has already been visited
         if (visitedWebpages.contains(url)) {
             std::cout << "  Already visited" << std::endl;
             continue;
         }
 
-        auto startDownload = std::chrono::steady_clock::now();
         try {
+            // Download webpage
+            auto startDownload = std::chrono::steady_clock::now();
             std::string webpage = downloadWebpage(url);
-            std::cout << "  Downloaded " << webpage.size() << " bytes" << std::endl;
             auto endDownload = std::chrono::steady_clock::now();
             performanceMetrics["download"] += std::chrono::duration_cast<std::chrono::milliseconds>(endDownload - startDownload);
 
+            // Extract links from the webpage
             auto startExtract = std::chrono::steady_clock::now();
             std::string baseDomain = extractDomain(url);
             std::vector<std::string> links = extractLinks(webpage, baseDomain);
-            // we print the links to the console
-            for (const std::string& link : links) {
-                std::cout << "  Found link: " << link << std::endl;
-            }
             auto endExtract = std::chrono::steady_clock::now();
             performanceMetrics["extract_links"] += std::chrono::duration_cast<std::chrono::milliseconds>(endExtract - startExtract);
 
+            // Extract title and content summary
             std::string title = extractTitle(webpage);
             std::string contentSummary = extractContentSummary(webpage);
 
             {
+                // Insert the URL into the visited set and increase the pagesVisited count
                 visitedWebpages.insert(url);
                 ++pagesVisited;
                 websiteIndex.push_back({url, title, contentSummary});
             }
 
+            // Add new links to the URL queue
             auto startQueue = std::chrono::steady_clock::now();
             {
                 std::unique_lock<std::mutex> lock(queueMutex);
@@ -102,14 +111,13 @@ void Crawler::crawlLoop() {
                         continue;
                     }
 
-                    // we also check if the link has the same domain as the base domain
                     std::string linkDomain = extractDomain(link);
-                        if (!linkDomain.empty() && linkDomain != baseDomain) {
+                    if (!linkDomain.empty() && linkDomain != baseDomain) {
                         continue;
                     }
                     if (!visitedWebpages.contains(link) && !urlQueueContains(link)) {
                         urlQueue.push(link);
-                        queueCondVar.notify_one();
+                        queueCondVar.notify_all(); // Notify all waiting threads
                     }
                 }
             }
