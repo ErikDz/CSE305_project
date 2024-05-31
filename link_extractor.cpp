@@ -71,7 +71,11 @@ std::string normalizeLink(std::string link, const std::string& baseDomain) {
         if (link.empty() || link[0] != '/') {
             link = '/' + link;
         }
-        link = "http://" + baseDomain + link;
+        link = "https://" + baseDomain + link;
+    }
+
+    if (link.substr(0, 7) == "http://") {
+        link = "https://" + link.substr(7);
     }
 
     return link;

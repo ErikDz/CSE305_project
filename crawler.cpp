@@ -125,7 +125,6 @@ void Crawler::crawlLoop() {
         activeThreads--;
     }
 }
-
 bool Crawler::urlQueueContains(const std::string& url) {
     std::queue<std::string> tempQueue = urlQueue;
     while (!tempQueue.empty()) {
