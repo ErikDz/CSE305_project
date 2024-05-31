@@ -98,23 +98,25 @@ void Crawler::crawlLoop() {
             }
 
             auto startQueue = std::chrono::steady_clock::now();
-            {
-                std::unique_lock<std::mutex> lock(queueMutex);
-                for (const std::string& link : links) {
-                    if (link.empty() || link[0] == '#') {
-                        continue;
-                    }
-
-                    std::string linkDomain = extractDomain(link);
-                    if (!linkDomain.empty() && linkDomain != baseDomain) {
-                        continue;
-                    }
-                    if (!visitedWebpages.contains(link) && !urlQueueContains(link)) {
-                        urlQueue.push(link);
-                        queueCondVar.notify_one();
-                    }
-                }
+                {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        for (const std::string& link : links) {
+            if (link.empty() || link[0] == '#') {
+                continue;
             }
+
+            std::string linkDomain = extractDomain(link);
+            if (!linkDomain.empty() && linkDomain != baseDomain) {
+                continue;
+            }
+
+            // Check if the link has already been visited or added to the queue
+            if (!visitedWebpages.contains(link) && urlVisitedSet.insert(link).second) {
+                urlQueue.push(link);
+                queueCondVar.notify_one();
+            }
+        }
+    }
             auto endQueue = std::chrono::steady_clock::now();
             performanceMetrics["update_queue"] += std::chrono::duration_cast<std::chrono::milliseconds>(endQueue - startQueue);
 

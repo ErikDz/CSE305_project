@@ -32,6 +32,7 @@ private:
     std::string extractDomain(const std::string& url);
     bool urlQueueContains(const std::string& url);
 
+    std::unordered_set<std::string> urlVisitedSet;
     std::string startUrl;
     int numThreads;
     std::queue<std::string> urlQueue;
