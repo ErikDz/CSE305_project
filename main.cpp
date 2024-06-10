@@ -2,15 +2,18 @@
 #include <iostream>
 #include <chrono>
 #include <vector>
+#include <thread>
 
 int main() {
     std::string startUrl;
     std::cout << "Enter the starting URL: ";
     std::getline(std::cin, startUrl);
 
-    std::vector<int> threadCounts = {50, 100, 150, 200, 250, 300, 350, 400};  // Different numbers of threads to test
+    int initialThreads = std::thread::hardware_concurrency();
+    int maxThreads = 4 * initialThreads;  // Adjust based on system specs and testing
+    int step = initialThreads;
 
-    for (int numThreads : threadCounts) {
+    for (int numThreads = initialThreads; numThreads <= maxThreads; numThreads += step) {
         std::cout << "Testing with " << numThreads << " threads..." << std::endl;
         Crawler crawler(startUrl, numThreads);
 
@@ -33,7 +36,6 @@ int main() {
         std::cout << "Time elapsed: " << duration.count() << " seconds" << std::endl << std::endl;
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
-
     }
 
     return 0;
