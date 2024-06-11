@@ -65,12 +65,12 @@ void Crawler::crawlLoop() {
 
         url = normalizeLink(url, extractDomain(startUrl));
 
-        std::cout << "Thread ID: " << std::this_thread::get_id() << std::endl;
-        std::cout << "Crawling: " << url << std::endl;
+        //std::cout << "Thread ID: " << std::this_thread::get_id() << std::endl;
+        //std::cout << std::this_thread::get_id() << " Crawling: " << url << std::endl;
 
         // Check if the URL has already been visited
         if (visitedWebpages.contains(url)) {
-            std::cout << "  Already visited" << std::endl;
+            //std::cout << "  Already visited" << std::endl;
             activeThreads--;
             continue;
         }

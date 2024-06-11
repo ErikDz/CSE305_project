@@ -3,6 +3,11 @@
 #include <chrono>
 #include <vector>
 #include <thread>
+#include <cmath>
+
+double calculateSpeedup(int newPagesVisited, int oldPagesVisited, int newThreads, int oldThreads) {
+    return static_cast<double>(newPagesVisited) / oldPagesVisited / (newThreads / static_cast<double>(oldThreads));
+}
 
 int main() {
     std::string startUrl;
@@ -10,8 +15,13 @@ int main() {
     std::getline(std::cin, startUrl);
 
     int initialThreads = std::thread::hardware_concurrency();
-    int maxThreads = 4 * initialThreads;  // Adjust based on system specs and testing
+    int maxThreads = 4 * initialThreads;
     int step = initialThreads;
+    int bestThreads = initialThreads;
+    double bestPerformance = 0;
+
+    int previousPagesVisited = 0;
+    int previousThreads = initialThreads;
 
     for (int numThreads = initialThreads; numThreads <= maxThreads; numThreads += step) {
         std::cout << "Testing with " << numThreads << " threads..." << std::endl;
@@ -29,14 +39,34 @@ int main() {
         }
 
         auto endTime = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime);
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+        int pagesVisited = crawler.getPagesVisited();
+        double performance = static_cast<double>(pagesVisited) / duration.count() * 1000; // Pages per millisecond
 
         std::cout << "Crawling completed with " << numThreads << " threads." << std::endl;
-        std::cout << "Number of pages visited: " << crawler.getPagesVisited() << std::endl;
-        std::cout << "Time elapsed: " << duration.count() << " seconds" << std::endl << std::endl;
+        std::cout << "Number of pages visited: " << pagesVisited << std::endl;
+        std::cout << "Time elapsed: " << duration.count() << " milliseconds" << std::endl;
+        std::cout << "Performance: " << performance << " pages/ms" << std::endl << std::endl;
+
+        if (performance > bestPerformance) {
+            bestPerformance = performance;
+            bestThreads = numThreads;
+        } else {
+            double speedup = calculateSpeedup(pagesVisited, previousPagesVisited, numThreads, previousThreads);
+            if (speedup < 1.1) { // Diminishing returns threshold
+                break;
+            }
+        }
+
+        previousPagesVisited = pagesVisited;
+        previousThreads = numThreads;
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
+
+    std::cout << "Optimal number of threads: " << bestThreads << std::endl;
+    std::cout << "Best performance: " << bestPerformance << " pages/s" << std::endl;
 
     return 0;
 }
